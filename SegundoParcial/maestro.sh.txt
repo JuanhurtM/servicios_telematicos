@@ -1,0 +1,156 @@
+#!/bin/bash
+
+echo "configurando el selinux para desactivarlo"
+sudo cat <<TEST> /etc/selinux/config
+# This file controls the state of SELinux on the system.
+# SELINUX= can take one of these three values:
+#     enforcing - SELinux security policy is enforced.
+#     permissive - SELinux prints warnings instead of enforcing.
+#     disabled - No SELinux policy is loaded.
+SELINUX=disabled
+# SELINUXTYPE= can take one of three values:
+#     targeted - Targeted processes are protected,
+#     minimum - Modification of targeted policy. Only selected processes are protected.
+#     mls - Multi Level Security protection.
+SELINUXTYPE=targeted
+TEST
+
+echo "instalando vim"
+sudo yum install vim -y
+sudo yum install bind-utils bind-libs bind-* -y
+
+echo "configurando las zonas en named"
+sudo cat <<TEST> /etc/named.conf
+options {
+        listen-on port 53 { 127.0.0.1; 192.168.100.4; };
+        listen-on-v6 port 53 { ::1; };
+        directory       "/var/named";
+        dump-file       "/var/named/data/cache_dump.db";
+        statistics-file "/var/named/data/named_stats.txt";
+        memstatistics-file "/var/named/data/named_mem_stats.txt";
+        recursing-file  "/var/named/data/named.recursing";
+        secroots-file   "/var/named/data/named.secroots";
+        allow-query     { localhost; 192.168.100.0/24; };
+        forwarders {192.168.100.4; };
+        allow-transfer {192.168.100.2; };
+
+        /*
+         - If you are building an AUTHORITATIVE DNS server, do NOT enable recursion.
+         - If you are building a RECURSIVE (caching) DNS server, you need to enable
+           recursion.
+         - If your recursive DNS server has a public IP address, you MUST enable access
+           control to limit queries to your legitimate users. Failing to do so will
+           cause your server to become part of large scale DNS amplification
+           attacks. Implementing BCP38 within your network would greatly
+           reduce such attack surface
+        */
+        recursion yes;
+
+        dnssec-enable yes;
+        dnssec-validation yes;
+
+	 /* Path to ISC DLV key */
+        bindkeys-file "/etc/named.root.key";
+
+        managed-keys-directory "/var/named/dynamic";
+
+        pid-file "/run/named/named.pid";
+        session-keyfile "/run/named/session.key";
+};
+
+logging {
+        channel default_debug {
+                file "data/named.run";
+                severity dynamic;
+        };
+};
+
+zone "." IN {
+        type hint;
+        file "named.ca";
+};
+
+/*ZONA ADELANTE*/
+zone "genesis.com" IN {
+        type master;
+        file "genesis.com.fwd";
+};
+
+/*ZONA REVERSA*/
+zone "100.168.192.in-addr.arpa" IN {
+        type master;
+        file "genesis.com.rev";
+};
+
+include "/etc/named.rfc1912.zones";
+include "/etc/named.root.key";
+TEST
+
+echo "iniciamos el servicio named"
+sudo service named start
+echo "configurando el resolv.conf con cat"
+
+sudo cat > /var/named/genesis.com.fwd  << 'EOF'
+$ORIGIN genesis.com.
+$TTL 3H
+@ IN SOA servidor3.genesis.com. root@genesis.com. (
+        0 ; serial
+        1D ; refresh
+        1H ; retry
+        1W ; expire
+        3H ) ; minimum
+@ NS servidor2.genesis.com.
+@ NS servidor3.genesis.com.
+@ NS smart.genesis.com.
+@ NS firewall.genesis.com.
+@ NS servicios.genesis.com.
+@ A 192.168.100.3
+@ A 192.168.100.4
+@ A 192.168.100.2
+@ A 192.168.1.130
+@ A 192.168.1.8
+servidor2 IN A 192.168.100.2
+servidor3 IN A 192.168.100.4
+firewall IN A 192.168.100.3
+smart IN A 192.168.1.8
+servicios IN A 192.168.1.130
+EOF
+
+cat > /var/named/genesis.com.rev << 'EOF'
+$ORIGIN 100.168.192.in-addr.arpa.
+$TTL 3H
+@ IN SOA servidor3.genesis.com. root@genesis.com. (
+                0 ; serial
+                1D ; refresh
+                1H ; retry
+                1W ; expire
+                3H ) ; minimum
+@       NS      servidor3.genesis.com.
+@       NS      servidor2.genesis.com.
+@       NS      smart.genesis.com.
+@       NS      firewall.genesis.com.
+@       NS      servicios.genesis.com.
+servidor2 IN A 192.168.100.2
+servidor3 IN A 192.168.100.4
+firewall IN A 192.168.100.3
+servicios IN A 192.168.1.130
+smart IN A 192.168.1.8
+4       IN      PTR     servidor3.genesis.com.
+2       IN      PTR     servidor2.genesis.com.
+3       IN      PTR     firewall.genesis.com.
+8       IN      PTR     smart.genesis.com.
+130       IN      PTR     servicios.genesis.com.
+EOF
+
+sudo chmod 755 /var/named/genesis.com.fwd
+sudo chmod 755 /var/named/genesis.com.rev
+
+echo "configurando el resolv.conf con cat"
+cat <<TEST> /etc/resolv.conf
+nameserver 192.168.100.4
+options single-request-reopen
+TEST
+
+sudo service named restart
+
+
