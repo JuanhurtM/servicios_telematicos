@@ -1,0 +1,14 @@
+service firewalld start
+
+firewall-cmd --zone=public --add-interface=eth0 --permanent
+firewall-cmd --zone=internal --add-interface=eth1 --permanent
+firewall-cmd --direct --add-rule ipv4 f ilter FORWARD 0 -i eth1 -o eth0 -j ACCEPT
+firewall-cmd --direct --add-rule ipv4 filter FORWARD 0 -i eth1 -o eth0 -j ACCEPT
+firewall-cmd --direct --add-rule ipv4 filter FORWARD 0 -i eth0 -o eth1 -m state --state RELATED,ESTABLISHED -j ACCEPT
+firewall-cmd --zone=internal --add-port=8080/tcp --permanent
+firewall-cmd --zone=public --add-port=8080/tcp --permanent
+firewall-cmd --zone=public --add-service=http --permanent
+firewall-cmd --zone=internal --add-service=http --permanent
+firewall-cmd --zone="public" --add-forward-port=port=8080:proto=tcp:toport=8080:toaddr=192.168.50.4 --permanent
+firewall-cmd --zone="internal" --add-forward-port=port=8080:proto=tcp:toport=8080:toaddr=192.168.50.4 --permanent
+firewall-cmd --reload
