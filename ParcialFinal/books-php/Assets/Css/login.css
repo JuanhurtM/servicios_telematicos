@@ -1,0 +1,52 @@
+:root {
+    --dark: #16191c;
+    --dark-x: #1e2126;
+    --light: #ffffff;
+    --danger: #c50d0d;
+}
+
+body{
+
+}
+
+.fixed {
+    position: fixed;
+    top: auto;
+}
+
+.img-1{
+    background-image: url('../Img/img1.jpg');
+    background-size: cover;
+    background-position: center;
+}
+
+.img-2{
+    background-image: url('../Img/img2.jpg');
+    background-size: cover;
+    background-position: center;
+}
+
+.bg-light { background-color:var(--light) !important; }
+.bg-light-x {background-color: var(--light);}
+.btn-danger-x { 
+    background-color: var(--danger);
+    text: var(--light);
+}
+
+.bg-danger-x{
+    background: var(--danger);
+    
+}
+
+.text-danger-x {
+   color: var(--danger);
+}
+
+.form-control, btn {
+    min-height: 3.125rem;
+    line-height: initial;
+}
+
+.end {
+    text-align: end;
+}
